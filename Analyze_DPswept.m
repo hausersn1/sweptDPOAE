@@ -4,9 +4,10 @@
 % reflection-component delays and cochlear tuning: Estimates from 
 % across the human lifespan
 
-windowdur = 0.031; 
-offsetwin = 0.02; 
-npoints = floor(max(stim.t)/(windowdur/20)); 
+load('stim.mat')
+windowdur = 0.3; 
+offsetwin = 0.015; 
+npoints = floor(max(stim.t-windowdur)/(windowdur/20)); 
 
 
 %% Set variables from the stim
@@ -24,30 +25,32 @@ else
     f_end = stim.fmax; 
 end 
 
-trials = stim.resp; 
-
-%% Artifact Rejection 
-energy = squeeze(sum(trials.^2, 2)); % same cut off for both trial types
-good = energy < median(energy) + 2*mad(energy);
-
-count = 0; 
-trials_clean = zeros(sum(good), size(trials, 2)); 
-for y = 1:size(trials, 1) 
-    if good(y) == 1 
-        count = count +1; 
-        trials_clean(count, :) = trials(y,:); 
-    end
-end
-DPOAE = mean(trials_clean, 1); 
-
-count_2x = floor(count/2)*2; 
-noise = zeros(count_2x, size(trials, 2)); 
-count = 0; 
-for x = 1:2:count_2x
-    count = count + 1; 
-    noise(count,:) = (trials_clean(x,:) - trials_clean(x+1,:)) / 2; 
-end
-NOISE = mean(noise,1); 
+DPOAE = stim.DPOAE; 
+NOISE = stim.NOISE; 
+% trials = stim.resp; 
+% 
+% %% Artifact Rejection 
+% energy = squeeze(sum(trials.^2, 2)); % same cut off for both trial types
+% good = energy < median(energy) + 2*mad(energy);
+% 
+% count = 0; 
+% trials_clean = zeros(sum(good), size(trials, 2)); 
+% for y = 1:size(trials, 1) 
+%     if good(y) == 1 
+%         count = count +1; 
+%         trials_clean(count, :) = trials(y,:); 
+%     end
+% end
+% DPOAE = mean(trials_clean, 1); 
+% 
+% count_2x = floor(count/2)*2; 
+% noise = zeros(count_2x, size(trials, 2)); 
+% count = 0; 
+% for x = 1:2:count_2x
+%     count = count + 1; 
+%     noise(count,:) = (trials_clean(x,:) - trials_clean(x+1,:)) / 2; 
+% end
+% NOISE = mean(noise,1); 
 
 %% Set up for analysis 
 % set freq we're testing and the timepoints when they happen.    
@@ -157,46 +160,9 @@ tau_pg_dp = -diff(theta_dp)./diff(freq_dp./1000); %millisec
 % for nf
 mag_nf = abs(complex(a_n, b_n).*phasor_dp) .* stim.VoltageToPascal .*stim.PascalToLinearSPL;
 
-%% Separating D and R components
-
-
-% maxfreq = max(freq_dp); 
-% minfreq = min(freq_dp); 
-% testfreq = linspace(floor(minfreq), floor(maxfreq), floor(((maxfreq)-minfreq)/25)); 
-% % 
-% for m = 1:size(testfreq, 2)-1
-%     
-%     f_win = find( testfreq(m) < freq_dp & ...
-%         freq_dp < testfreq(m)+300);
-%     f_taper = hanning(f_win)'; 
-% 
-%     dp = mag_dp(f_win); 
-%     
-%     N = 2.*nextpow2(2*size(dp, 1)); 
-%     timewave = ifft(mag_dp, N); 
-%     t = 1000.*linspace(0,N/stim.Fs, N); 
-%     figure(10); plot(t, abs(timewave))
-% 
-% end
-
-% % %
-% % X = complex(a_f2, b_f2).*phasor_f2; 
-% % N=2.^16; 
-% % timewave = ifft(X, N); 
-% % t = 1000.*linspace(0,N/stim.Fs, N); 
-% % plot(abs(timewave))
-% % 
-% % window = find(t < 5, 1, 'last'); 
-% % winend = find(t<10,1, 'last'); 
-% % dist = abs(fft(timewave(1:window))); 
-% % figure(11); plot(dist)
-% % refl = abs(fft(timewave(window+1:winend))); 
-% % figure(11); hold on; plot(refl)
-
 
 %% Plot figures
 figure(1); 
-hold on; 
 semilogx(freq_dp, db(mag_dp), 'linew', 2); 
 hold on; 
 semilogx(freq_f1, db(mag_f1), 'linew', 2); 
@@ -214,9 +180,9 @@ figure(2);
 hold on; 
 semilogx(freq_dp, theta_dp-max(theta_dp), 'o')
 hold on; 
-semilogx(freq_dp, theta_f1-max(theta_f1),'o');
+semilogx(freq_f1, theta_f1-max(theta_f1),'o');
 hold on; 
-semilogx(freq_dp, theta_f2-max(theta_f2), 'o');
+semilogx(freq_f2, theta_f2-max(theta_f2), 'o');
 title('Theta, angle(a,b)')
 xlabel('Probe Frequency (Hz)', 'FontSize', 16); 
 ylabel('Phase (cycles)', 'FontSize', 16); 
