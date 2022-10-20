@@ -3,9 +3,10 @@
 % Abdala et al., 2015: Optimizing swept-tone protocols for recording
 % distortion-product otoacoustic emissions in adults and newborns
 
-windowdur = 0.04; % = BW/r (r=abs(stim.speed))
-offsetwin = 0.01;
-npoints = 256; %floor(max(stim.t)/(windowdur/2)); % shift is windowdur/20
+windowdur = 0.04;
+offsetwin = 0.0; % not finding additional delay
+npoints = 256;
+example=1; % set as 1 if running with stim file from github 
 
 
 %% Set variables from the stim
@@ -23,33 +24,35 @@ else
     f_end = stim.fmax;
 end
 
-
-DPOAE = stim.DPOAE;
-NOISE = stim.NOISE;
-% trials = stim.resp;
-%
-% %% Artifact Rejection
-% energy = squeeze(sum(trials.^2, 2)); % same cut off for both trial types
-% good = energy < median(energy) + 2*mad(energy);
-%
-% count = 0;
-% trials_clean = zeros(sum(good), size(trials, 2));
-% for y = 1:size(trials, 1)
-%     if good(y) == 1
-%         count = count +1;
-%         trials_clean(count, :) = trials(y,:);
-%     end
-% end
-% DPOAE = mean(trials_clean, 1);
-%
-% count_2x = floor(count/2)*2;
-% noise = zeros(count_2x, size(trials, 2));
-% count = 0;
-% for x = 1:2:count_2x
-%     count = count + 1;
-%     noise(count,:) = (trials_clean(x,:) - trials_clean(x+1,:)) / 2;
-% end
-% NOISE = mean(noise,1);
+if example == 1 % just for running example on github
+    DPOAE = stim.DPOAE; % already averaged
+    NOISE = stim.NOISE;
+    
+else
+    %% Artifact Rejection
+    trials = stim.resp;
+    energy = squeeze(sum(trials.^2, 2)); 
+    good = energy < median(energy) + 2*mad(energy);
+    
+    count = 0;
+    trials_clean = zeros(sum(good), size(trials, 2));
+    for y = 1:size(trials, 1) % just get trials w/o artifact ("good" trials)
+        if good(y) == 1
+            count = count +1;
+            trials_clean(count, :) = trials(y,:);
+        end
+    end
+    DPOAE = mean(trials_clean, 1);
+    
+    count_2x = floor(count/2)*2; % need even number of trials
+    noise = zeros(count_2x, size(trials, 2));
+    count = 0;
+    for x = 1:2:count_2x
+        count = count + 1;
+        noise(count,:) = (trials_clean(x,:) - trials_clean(x+1,:)) / 2;
+    end
+    NOISE = mean(noise,1);
+end
 
 %% Set up for analysis
 % set freq we're testing and the timepoints when they happen.
@@ -62,64 +65,60 @@ t_freq = (freq_f2-f_start)/stim.speed + stim.buffdur;
 maxoffset = ceil(stim.Fs * offsetwin);
 coeffs = zeros(npoints, 2);
 coeffs_n = zeros(npoints, 2);
-tau_dp = zeros(npoints, 1);
-tau_f1 = zeros(npoints, 1);
-tau_f2 = zeros(npoints, 1);
+tau_dp = zeros(npoints, 1); % delay if offset > 0
 
 %% Least Squares fit of Chirp model
 for k = 1:npoints
     fprintf(1, 'Running window %d / %d\n', k, npoints);
-
+    
     win = find( (t > (t_freq(k) - windowdur/2)) & ...
         (t < (t_freq(k) + windowdur/2)));
     taper = hanning(numel(win))';
-
+    
     model_dp = [cos(phi_dp_inst(win)) .* taper;
         -sin(phi_dp_inst(win)) .* taper];
-
+    
     model_f1 = [cos(phi1_inst(win)) .* taper;
         -sin(phi1_inst(win)) .* taper];
-
+    
     model_f2 = [cos(phi2_inst(win)) .* taper;
         -sin(phi2_inst(win)) .* taper];
-
+    
     % zero out variables for offset calc
     coeff = zeros(maxoffset, 6);
     coeff_n = zeros(maxoffset, 6);
     resid = zeros(maxoffset, 3);
-
+    
     for offset = 0:maxoffset
         resp = DPOAE(win+offset) .* taper;
         resp_n = NOISE(win+offset) .* taper;
-
+        
         % for model_dp
         coeff(offset + 1, 1:2) = model_dp' \ resp';
         coeff_n(offset + 1, 1:2) = model_dp' \ resp_n';
         resid(offset + 1, 1) = sum( (resp  - coeff(offset + 1, 1:2) * model_dp).^2);
-
+        
     end
     resp = DPOAE(win) .* taper;
     resp_n = NOISE(win) .* taper;
-
+    
     % for model_f1
     coeff(1, 3:4) = model_f1' \ resp';
     coeff_n(1, 3:4) = model_f1' \ resp_n';
     resid(1, 2) = sum( (resp  - coeff(1, 3:4) * model_f1).^2);
-
+    
     % for model_f2
     coeff(1, 5:6) = model_f2' \ resp';
     coeff_n(1, 5:6) = model_f2' \ resp_n';
     resid(1, 3) = sum( (resp  - coeff(1, 5:6) * model_f2).^2);
-
+    
     [~, ind] = min(resid(:,1));
     coeffs(k, 1:2) = coeff(ind, 1:2);
     coeffs_n(k, 1:2) = coeff_n(ind, 1:2);
     coeffs(k, 3:6) = coeff(1,3:6);
-
+    
     tau_dp(k) = (ind(1) - 1) * 1/stim.Fs; % delay in sec
 end
-
-
 
 %% Amplitude and Delay calculations
 a_dp = coeffs(:, 1);
@@ -131,29 +130,24 @@ b_f2 = coeffs(:, 6);
 a_n = coeffs_n(:, 1);
 b_n = coeffs_n(:, 2);
 
-f_x_dp = (freq_dp(2:end) + freq_dp(1:end-1))/2;
-f_x_f1 = (freq_f1(2:end) + freq_f1(1:end-1))/2;
-f_x_f2 = (freq_f2(2:end) + freq_f2(1:end-1))/2;
-
 % for f1
-
-mag_f1 = abs(complex(a_f1, b_f1)) .* stim.VoltageToPascal .*stim.PascalToLinearSPL;
+mag_f1 = abs(complex(a_f1, b_f1)) .* stim.VoltageToPascal .*stim.PascalToLinearSPL; %dBSPL
 theta_f1 = unwrap(angle(complex(a_f1,b_f1)))/(2*pi); % cycles;
-tau_pg_f1 = -diff(theta_f1)./diff(freq_f1./1000);
+tau_pg_f1 = -(diff(theta_f1)./diff(freq_f1))/1000; % ms
 
 % for f2
-
 mag_f2 = abs(complex(a_f2, b_f2)) .* stim.VoltageToPascal .*stim.PascalToLinearSPL;
-theta_f2 = unwrap(angle(complex(a_f2,b_f2)))/(2*pi); % cycles;
-tau_pg_f2 = -diff(theta_f2)./diff(freq_f2./1000);
-
+theta_f2 = unwrap(angle(complex(a_f2,b_f2)))/(2*pi); 
+tau_pg_f2 = -(diff(theta_f2)./diff(freq_f2))/1000;
 
 % for dp
-phi_dp = tau_dp.*freq_dp'; %- phi_correction; % cycles
+phi_dp = tau_dp.*freq_dp'; % cycles (from delay/offset)
 phasor_dp = exp(-1j * phi_dp * 2 * pi);
 mag_dp = abs(complex(a_dp, b_dp).*phasor_dp) .* stim.VoltageToPascal .*stim.PascalToLinearSPL;
-theta_dp = unwrap(angle(complex(a_dp,b_dp).*phasor_dp))/(2*pi); % cycles;
-tau_pg_dp = -diff(theta_dp)./diff(freq_dp./1000); %millisec
+theta_dp = unwrap(angle(complex(a_dp,b_dp).*phasor_dp))/(2*pi); % cycles from angle
+theta_dp = theta_dp-max(theta_dp); % starting at zero
+tau_pg_dp = -(diff(theta_dp)./diff(freq_dp')).*1000; % ms
+f_x_dp = (freq_dp(2:end) + freq_dp(1:end-1))/2;
 
 % for nf
 mag_nf = abs(complex(a_n, b_n).*phasor_dp) .* stim.VoltageToPascal .*stim.PascalToLinearSPL;
@@ -177,7 +171,6 @@ end
 N = roundodd(timedur * fs);
 f = (0:(N-1))*fs/N; % FFT bin frequencies
 
-
 % Window the frequency domain response to avoid sharp edges while filling
 % in zeros for empty bins
 rampsamps = 8;
@@ -188,7 +181,7 @@ complex_dp_ramp(1:rampsamps) = complex_dp_ramp(1:rampsamps)...
 complex_dp_ramp((end-rampsamps+1):end) = ...
     complex_dp_ramp((end-rampsamps+1):end).* ramp((end-rampsamps+1):end);
 
-%  Fill in FFT bins from dp data
+% Fill in FFT bins from dp data
 FFT_dp =  interp1(freq_dp, complex_dp_ramp, f);
 FFT_dp(isnan(FFT_dp)) = 0;
 
@@ -205,12 +198,11 @@ t = (0:(N-1))/fs - timedur/2; % in milleseconds
 
 % Start a bit negative because D component has close to 0 delay and go to
 % half of the reconstructed duration (50 ms) as planned
-t_min = -4e-3; 
-t_max = timedur*1e3/2; 
+t_min = -4e-3;
+t_max = timedur*1e3/2;
 inds_valid = t > t_min & t < t_max;
 impulse_dp = impulse_dp(inds_valid);
 t_dp = t(inds_valid);
-
 
 % Plot envelope of impulse response to see if there are two peaks, with the
 % notch between peaks being somewhere in the 1-5 ms range.
@@ -233,10 +225,8 @@ smoothing_kernel  = smoothing_kernel / sum(smoothing_kernel);
 win_D_only = conv(t_dp < D_only_dur, smoothing_kernel, 'same');
 win_R_only = conv(t_dp > D_only_dur, smoothing_kernel, 'same');
 
-
 impulse_dp_D_only = impulse_dp .* win_D_only;
 impulse_dp_R_only = impulse_dp .* win_R_only;
-
 
 complex_dp_D_only_allbins = fft(impulse_dp_D_only);
 complex_dp_R_only_allbins = fft(impulse_dp_R_only);
@@ -253,6 +243,7 @@ complex_dp_D_IFFT = interp1(f_complex_dp_D_only_allbins,...
 complex_dp_R_IFFT = interp1(f_complex_dp_D_only_allbins,...
     complex_dp_R_only_allbins_corrected, freq_dp);
 
+%% Plot ifft Method
 figure(41);
 hold on;
 plot(freq_dp, db(abs(complex_dp)), 'linew', 2);
@@ -271,36 +262,45 @@ title('Separating by IFFT',  'FontSize', 16);
 %% Plot figures
 figure(10);
 hold on;
-semilogx(freq_dp, db(mag_dp), 'linew', 2);
+semilogx(freq_f2, db(mag_dp), 'linew', 2);
 hold on;
 semilogx(freq_f1, db(mag_f1), 'linew', 2);
 hold on;
 semilogx(freq_f2, db(mag_f2), 'linew', 2);
 hold on;
-semilogx(freq_dp, db(mag_nf),'--', 'linew', 2);
+semilogx(freq_f2, db(mag_nf),'--', 'linew', 2);
 xlim([stim.fmin * rdp, stim.fmax * rdp]);
-xlabel('DPOAE Frequency (Hz)', 'FontSize', 16);
+xlabel('Frequency (Hz)', 'FontSize', 16);
 ylabel('DPOAE level (dB SPL)', 'FontSize', 16);
 set(gca, 'FontSize', 16);
-legend('dp', 'f1', 'f2', 'nf');
+legend('DP', 'F1', 'F2', 'NF');
+title('Total DPOAE',  'FontSize', 16);
+xticks([500, 1000, 2000, 4000, 8000, 16000])
 
 figure(30);
-hold on;
-semilogx(freq_dp, theta_dp-max(theta_dp), 'o')
-% hold on;
-% semilogx(freq_dp, theta_f1-max(theta_f1),'o');
-% hold on;
-% semilogx(freq_dp, theta_f2-max(theta_f2), 'o');
-title('Theta, angle(a,b)')
+semilogx(freq_dp, theta_dp, 'o')
+set(gca, 'FontSize', 16);
+title('Theta, angle(a,b)', 'FontSize', 16)
 xlabel('Probe Frequency (Hz)', 'FontSize', 16);
 ylabel('Phase (cycles)', 'FontSize', 16);
+xticks([500, 1000, 2000, 4000, 8000, 16000])
 
-%
-% figure(3);
-% semilogx(f_x, tau_pg_dp, 's', testfreq, (tau_dp.*1000), 'or');
-% title('Group Delay, pg from slope, tau from offset');
-% xlabel('Frequency (Hz)', 'FontSize', 16);
-% ylabel('Group Delay (ms)', 'FontSize', 16);
-% ylim([-10, 30])
-% xlim([stim.fmin, stim.fmax])
-% legend('tau_p_g (-d\theta/df)', 'tau_n (offset)')
+figure(20);
+semilogx(f_x_dp, tau_pg_dp, 's');
+title('Group Delay (-d\theta/df)', 'FontSize', 16);
+xlabel('2F_1-F_2 Frequency (Hz)', 'FontSize', 16);
+ylabel('Group Delay (ms)', 'FontSize', 16);
+set(gca, 'FontSize', 16);
+ylim([-10, 30])
+xlim([stim.fmin*rdp, stim.fmax*rdp])
+xticks([500, 1000, 2000, 4000, 8000, 16000])
+
+figure(21);
+loglog(f_x_dp, tau_pg_dp/1000.*f_x_dp', 's');
+title('N - for calculating Qerb', 'FontSize', 16);
+xlabel('2F_1-F_2 Frequency (Hz)', 'FontSize', 16);
+ylabel('N_D_P_O_A_E', 'FontSize', 16);
+set(gca, 'FontSize', 16);
+xlim([stim.fmin*rdp, stim.fmax*rdp])
+xticks([500, 1000, 2000, 4000, 8000, 16000])
+
