@@ -3,8 +3,8 @@
 % Abdala et al., 2015: Optimizing swept-tone protocols for recording
 % distortion-product otoacoustic emissions in adults and newborns
 
-windowdur = 0.2; % = BW/r (r=abs(stim.speed))
-offsetwin = 0.0;
+windowdur = 0.04; % = BW/r (r=abs(stim.speed))
+offsetwin = 0.01;
 npoints = 256; %floor(max(stim.t)/(windowdur/2)); % shift is windowdur/20
 
 
@@ -69,53 +69,53 @@ tau_f2 = zeros(npoints, 1);
 %% Least Squares fit of Chirp model
 for k = 1:npoints
     fprintf(1, 'Running window %d / %d\n', k, npoints);
-    
+
     win = find( (t > (t_freq(k) - windowdur/2)) & ...
         (t < (t_freq(k) + windowdur/2)));
     taper = hanning(numel(win))';
-    
+
     model_dp = [cos(phi_dp_inst(win)) .* taper;
         -sin(phi_dp_inst(win)) .* taper];
-    
+
     model_f1 = [cos(phi1_inst(win)) .* taper;
         -sin(phi1_inst(win)) .* taper];
-    
+
     model_f2 = [cos(phi2_inst(win)) .* taper;
         -sin(phi2_inst(win)) .* taper];
-    
+
     % zero out variables for offset calc
     coeff = zeros(maxoffset, 6);
     coeff_n = zeros(maxoffset, 6);
     resid = zeros(maxoffset, 3);
-    
+
     for offset = 0:maxoffset
         resp = DPOAE(win+offset) .* taper;
         resp_n = NOISE(win+offset) .* taper;
-        
+
         % for model_dp
         coeff(offset + 1, 1:2) = model_dp' \ resp';
         coeff_n(offset + 1, 1:2) = model_dp' \ resp_n';
         resid(offset + 1, 1) = sum( (resp  - coeff(offset + 1, 1:2) * model_dp).^2);
-        
+
     end
     resp = DPOAE(win) .* taper;
     resp_n = NOISE(win) .* taper;
-    
+
     % for model_f1
     coeff(1, 3:4) = model_f1' \ resp';
     coeff_n(1, 3:4) = model_f1' \ resp_n';
     resid(1, 2) = sum( (resp  - coeff(1, 3:4) * model_f1).^2);
-    
+
     % for model_f2
     coeff(1, 5:6) = model_f2' \ resp';
     coeff_n(1, 5:6) = model_f2' \ resp_n';
     resid(1, 3) = sum( (resp  - coeff(1, 5:6) * model_f2).^2);
-    
+
     [~, ind] = min(resid(:,1));
     coeffs(k, 1:2) = coeff(ind, 1:2);
     coeffs_n(k, 1:2) = coeff_n(ind, 1:2);
     coeffs(k, 3:6) = coeff(1,3:6);
-    
+
     tau_dp(k) = (ind(1) - 1) * 1/stim.Fs; % delay in sec
 end
 
@@ -158,41 +158,114 @@ tau_pg_dp = -diff(theta_dp)./diff(freq_dp./1000); %millisec
 % for nf
 mag_nf = abs(complex(a_n, b_n).*phasor_dp) .* stim.VoltageToPascal .*stim.PascalToLinearSPL;
 
-%% Separating D and R components
+%% Separating D and R components by IFFT
+
+complex_dp = complex(a_dp, b_dp).*phasor_dp * stim.VoltageToPascal * ...
+    stim.PascalToLinearSPL;
+
+fs = stim.Fs; % Exact value doesn't matter, but simplest to match orig
+
+% Reconstruct time-domain response to 100 ms. Then the first 50 ms can be
+% used, with the recognition that part of the right half is negative time.
+% 50 ms should still be plenty for all OAE components to have come back
+% and the impulse response to have decayed to noise floor.
+timedur = 100e-3;
+% Check if 1/(frequency resolution) is long enough
+if 1/mean(abs(diff(freq_dp))) < timedur/2
+    warning('Too few DPOAE points, aliasing  will likely  occur');
+end
+N = roundodd(timedur * fs);
+f = (0:(N-1))*fs/N; % FFT bin frequencies
 
 
-% maxfreq = max(freq_dp);
-% minfreq = min(freq_dp);
-% testfreq = linspace(floor(minfreq), floor(maxfreq), floor(((maxfreq)-minfreq)/25));
-% %
-% for m = 1:size(testfreq, 2)-1
-%
-%     f_win = find( testfreq(m) < freq_dp & ...
-%         freq_dp < testfreq(m)+300);
-%     f_taper = hanning(f_win)';
-%
-%     dp = mag_dp(f_win);
-%
-%     N = 2.*nextpow2(2*size(dp, 1));
-%     timewave = ifft(mag_dp, N);
-%     t = 1000.*linspace(0,N/stim.Fs, N);
-%     figure(10); plot(t, abs(timewave))
-%
-% end
+% Window the frequency domain response to avoid sharp edges while filling
+% in zeros for empty bins
+rampsamps = 8;
+ramp = hanning(2*rampsamps);
+complex_dp_ramp  = complex_dp;
+complex_dp_ramp(1:rampsamps) = complex_dp_ramp(1:rampsamps)...
+    .*ramp(1:rampsamps);
+complex_dp_ramp((end-rampsamps+1):end) = ...
+    complex_dp_ramp((end-rampsamps+1):end).* ramp((end-rampsamps+1):end);
 
-% % %
-% % X = complex(a_f2, b_f2).*phasor_f2;
-% % N=2.^16;
-% % timewave = ifft(X, N);
-% % t = 1000.*linspace(0,N/stim.Fs, N);
-% % plot(abs(timewave))
-% %
-% % window = find(t < 5, 1, 'last');
-% % winend = find(t<10,1, 'last');
-% % dist = abs(fft(timewave(1:window)));
-% % figure(11); plot(dist)
-% % refl = abs(fft(timewave(window+1:winend)));
-% % figure(11); hold on; plot(refl)
+%  Fill in FFT bins from dp data
+FFT_dp =  interp1(freq_dp, complex_dp_ramp, f);
+FFT_dp(isnan(FFT_dp)) = 0;
+
+% First bin is f=0, then you have even number of bins
+% Need to take first half and conjugate mirror to fill other.
+Nhalf = (N-1)/2;
+nonzeroHalf =  FFT_dp(2:(2+Nhalf-1));
+FFT_dp((Nhalf+2):end) = conj(nonzeroHalf(end:-1:1));
+
+impulse_dp = ifftshift(ifft(FFT_dp));
+
+% Make time vector: t=0 will be at the center owing to ifftshift
+t = (0:(N-1))/fs - timedur/2; % in milleseconds
+
+% Start a bit negative because D component has close to 0 delay and go to
+% half of the reconstructed duration (50 ms) as planned
+t_min = -4e-3; 
+t_max = timedur*1e3/2; 
+inds_valid = t > t_min & t < t_max;
+impulse_dp = impulse_dp(inds_valid);
+t_dp = t(inds_valid);
+
+
+% Plot envelope of impulse response to see if there are two peaks, with the
+% notch between peaks being somewhere in the 1-5 ms range.
+figure(40);
+impulse_dp_env = abs(hilbert(impulse_dp));
+plot(t_dp*1e3,  impulse_dp_env, 'linew', 2);
+xlim([t_min*1e3, 20]);
+xlabel('Time (ms)', 'FontSize', 16);
+ylabel('Impulse Response Envelope', 'FontSize', 16);
+set(gca, 'FontSize', 16);
+title('IFFT method',  'FontSize', 16);
+
+% Location of one of the notches..
+D_only_dur = 3.5e-3;
+
+% Do windowing of signals
+% Start with  hard windows (box) and then smooth edges by 0.5 ms
+smoothing_kernel = blackman(ceil(0.5e-3*fs));
+smoothing_kernel  = smoothing_kernel / sum(smoothing_kernel);
+win_D_only = conv(t_dp < D_only_dur, smoothing_kernel, 'same');
+win_R_only = conv(t_dp > D_only_dur, smoothing_kernel, 'same');
+
+
+impulse_dp_D_only = impulse_dp .* win_D_only;
+impulse_dp_R_only = impulse_dp .* win_R_only;
+
+
+complex_dp_D_only_allbins = fft(impulse_dp_D_only);
+complex_dp_R_only_allbins = fft(impulse_dp_R_only);
+f_complex_dp_D_only_allbins = (0:(numel(impulse_dp_D_only)-1)) ...
+    * fs/numel(impulse_dp_D_only);
+phasor_tmin_correction = ...
+    exp(1j*2*pi*f_complex_dp_D_only_allbins*abs(t_min));
+complex_dp_D_only_allbins_corrected = complex_dp_D_only_allbins ...
+    .* phasor_tmin_correction;
+complex_dp_R_only_allbins_corrected = complex_dp_R_only_allbins ...
+    .* phasor_tmin_correction;
+complex_dp_D_IFFT = interp1(f_complex_dp_D_only_allbins,...
+    complex_dp_D_only_allbins_corrected, freq_dp);
+complex_dp_R_IFFT = interp1(f_complex_dp_D_only_allbins,...
+    complex_dp_R_only_allbins_corrected, freq_dp);
+
+figure(41);
+hold on;
+plot(freq_dp, db(abs(complex_dp)), 'linew', 2);
+hold on;
+semilogx(freq_dp, db(abs(complex_dp_D_IFFT)), 'linew', 2);
+hold on;
+semilogx(freq_dp, db(abs(complex_dp_R_IFFT)), 'linew', 2);
+xlabel('DPOAE Frequency (Hz)', 'FontSize', 16);
+ylabel('DPOAE level (dB SPL)', 'FontSize', 16);
+set(gca, 'FontSize', 16);
+legend('Total', 'D only', 'R only');
+ylim([-60, 80]);
+title('Separating by IFFT',  'FontSize', 16);
 
 
 %% Plot figures
