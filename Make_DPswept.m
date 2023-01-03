@@ -3,13 +3,13 @@ function stim = Make_DPswept()
 % VtoPforH
 
 stim.fmin = 500;
-stim.fmax = 8000;
+stim.fmax = 16000;
 stim.speed = -2000; %change to linear, Hz/sec
-stim.drop_f1 = 48;  % levels
-stim.drop_f2 = 58;
-stim.buffdur = 0.25;% buffer duration
-stim.ThrowAways = 1;
-stim.Averages = 24; % num of trials
+stim.drop_f1 = 40;  % levels
+stim.drop_f2 = stim.drop_f1 + 10; % f2 = f1 - 10 (ie +10 more attn)
+stim.buffdur = 0.1;% buffer duration
+stim.ThrowAway = 1;
+stim.Averages = 30; % num of trials
 stim.ratio = 1.22;
 stim.Fs = 48828.125;
 
@@ -46,13 +46,13 @@ end_2 = f_end*t(1:(length(t)-buffinst2+1)) + phi2_inst(buffinst2);
 phi2_inst(1:buffinst1) = start_2;
 phi2_inst(buffinst2:end) = end_2;
 
+% For logrithmic sweeps
 % f2_inst = fmax * 2.^( (t - buffdur) * stim.speed);
 % f2_inst(1:buffinst1) = fmax;
 % f2_inst(buffinst2:end) = fmin;
 % phi2_inst = fmax * (2.^( (t - buffdur) * stim.speed) - 1) / (stim.speed * log(2));
 % phi2_inst(1:buffinst1) = fmax .* (t(1:buffinst1) - buffdur);
 % phi2_inst(buffinst2:end) = fmin .* (t(buffinst2:end) - t(buffinst2)) + phi2_inst(buffinst2);
-
 
 f1_inst = f2_inst / stim.ratio;
 phi1_inst = phi2_inst / stim.ratio;

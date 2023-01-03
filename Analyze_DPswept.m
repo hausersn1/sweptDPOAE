@@ -6,8 +6,6 @@
 windowdur = 0.04;
 offsetwin = 0.0; % not finding additional delay
 npoints = 256;
-example=1; % set as 1 if running with stim file from github 
-
 
 %% Set variables from the stim
 phi1_inst = 2 * pi * stim.phi1_inst;
@@ -24,35 +22,30 @@ else
     f_end = stim.fmax;
 end
 
-if example == 1 % just for running example on github
-    DPOAE = stim.DPOAE; % already averaged
-    NOISE = stim.NOISE;
-    
-else
-    %% Artifact Rejection
-    trials = stim.resp;
-    energy = squeeze(sum(trials.^2, 2)); 
-    good = energy < median(energy) + 2*mad(energy);
-    
-    count = 0;
-    trials_clean = zeros(sum(good), size(trials, 2));
-    for y = 1:size(trials, 1) % just get trials w/o artifact ("good" trials)
-        if good(y) == 1
-            count = count +1;
-            trials_clean(count, :) = trials(y,:);
-        end
+
+%% Artifact Rejection
+trials = stim.resp;
+energy = squeeze(sum(trials.^2, 2));
+good = energy < median(energy) + 2*mad(energy);
+
+count = 0;
+trials_clean = zeros(sum(good), size(trials, 2));
+for y = 1:size(trials, 1) % just get trials w/o artifact ("good" trials)
+    if good(y) == 1
+        count = count +1;
+        trials_clean(count, :) = trials(y,:);
     end
-    DPOAE = mean(trials_clean, 1);
-    
-    count_2x = floor(count/2)*2; % need even number of trials
-    noise = zeros(count_2x, size(trials, 2));
-    count = 0;
-    for x = 1:2:count_2x
-        count = count + 1;
-        noise(count,:) = (trials_clean(x,:) - trials_clean(x+1,:)) / 2;
-    end
-    NOISE = mean(noise,1);
 end
+DPOAE = mean(trials_clean, 1);
+
+count_2x = floor(count/2)*2; % need even number of trials
+noise = zeros(count_2x, size(trials, 2));
+count = 0;
+for x = 1:2:count_2x
+    count = count + 1;
+    noise(count,:) = (trials_clean(x,:) - trials_clean(x+1,:)) / 2;
+end
+NOISE = mean(noise,1);
 
 %% Set up for analysis
 % set freq we're testing and the timepoints when they happen.
@@ -137,7 +130,7 @@ tau_pg_f1 = -(diff(theta_f1)./diff(freq_f1))/1000; % ms
 
 % for f2
 mag_f2 = abs(complex(a_f2, b_f2)) .* stim.VoltageToPascal .*stim.PascalToLinearSPL;
-theta_f2 = unwrap(angle(complex(a_f2,b_f2)))/(2*pi); 
+theta_f2 = unwrap(angle(complex(a_f2,b_f2)))/(2*pi);
 tau_pg_f2 = -(diff(theta_f2)./diff(freq_f2))/1000;
 
 % for dp
@@ -299,7 +292,7 @@ figure(21);
 loglog(f_x_dp, tau_pg_dp/1000.*f_x_dp', 's');
 title('N - for calculating Qerb', 'FontSize', 16);
 xlabel('2F_1-F_2 Frequency (Hz)', 'FontSize', 16);
-ylabel('N_D_P_O_A_E', 'FontSize', 16);
+ylabel('N_{DPOAE}', 'FontSize', 16);
 set(gca, 'FontSize', 16);
 xlim([stim.fmin*rdp, stim.fmax*rdp])
 xticks([500, 1000, 2000, 4000, 8000, 16000])
