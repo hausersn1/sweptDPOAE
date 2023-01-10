@@ -1,4 +1,4 @@
-function stim = Make_DPswept()
+function stim = Make_DPswept_Chin()
 % rawstim (structure) should contain fields fmin, fmax, speed, Fs, ratio,
 % VtoPforH
 

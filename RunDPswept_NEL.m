@@ -27,7 +27,7 @@ uiwait(warndlg('Set ER-10B+ GAIN to 40 dB','SET ER-10B+ GAIN WARNING','modal'));
 
 %% Start w/ Delay if needed
 % Get stimulus structure
-stim = Make_DPswept;
+stim = Make_DPswept_Chin;
 stim.subj = subj;
 stim.ear = ear;
 
