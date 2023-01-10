@@ -8,6 +8,7 @@
 windowdur = 0.04;
 offsetwin = 0.0; % not finding additional delay
 npoints = 256;
+example = 1; % to run stim file in github
 
 %% Set variables from the stim
 phi1_inst = 2 * pi * stim.phi1_inst;
@@ -24,7 +25,32 @@ else
     f_end = stim.fmax;
 end
 
+if example == 1 % just for running example on github
+    DPOAE = stim.DPOAE; % already averaged
+    NOISE = stim.NOISE;
 
+else
+    %% Artifact Rejection
+    trials = stim.resp;
+    energy = squeeze(sum(trials.^2, 2)); 
+    good = energy < median(energy) + 2*mad(energy);
+
+    count = 0;
+    trials_clean = zeros(sum(good), size(trials, 2));
+    for y = 1:size(trials, 1) % just get trials w/o artifact ("good" trials)
+        if good(y) == 1
+            count = count +1;
+            trials_clean(count, :) = trials(y,:);
+        end
+    end
+    DPOAE = mean(trials_clean, 1);
+
+    count_2x = floor(count/2)*2; % need even number of trials
+    noise = zeros(count_2x, size(trials, 2));
+    count = 0;
+    for x = 1:2:count_2x
+        count = count + 1;
+        noise(count,:) = (trials_clean(x,:) - trials_clean(x+1,:)) / 2;
 %% Artifact Rejection
 trials = stim.resp;
 energy = squeeze(sum(trials.^2, 2));
