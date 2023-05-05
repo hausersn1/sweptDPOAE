@@ -1,25 +1,15 @@
-function stim = Make_DPswept_log()
+function stim = Make_DPswept_Chin()
 % rawstim (structure) should contain fields fmin, fmax, speed, Fs, ratio,
 % VtoPforH
 
 stim.fmin = 500;
 stim.fmax = 16000;
-stim.speed = -1; %change to linear, Hz/sec
-stim.drop_f1 = 53;  % levels
-stim.drop_f2 = stim.drop_f1 + 10 ; %f2 is 10 dB softer (more attn)
-stim.buffdur = 0.25;% buffer duration
-<<<<<<< HEAD
+stim.speed = -2000; %change to linear, Hz/sec
+stim.drop_f1 = 40;  % levels
+stim.drop_f2 = stim.drop_f1 + 10; % f2 = f1 - 10 (ie +10 more attn)
+stim.buffdur = 0.1;% buffer duration
 stim.ThrowAway = 1;
-%stim.Averages = 75; % num of trials
-stim.Averages = 20;
-stim.SNRcriterion = 6; 
-stim.minTrials = 12; 
-stim.maxTrials = 50; 
-=======
-stim.ThrowAways = 1;
-%stim.Averages = 75; % num of trials
-stim.Averages = 20;
->>>>>>> fd5501e3b20b80c4a7bc502670da30346c248183
+stim.Averages = 30; % num of trials
 stim.ratio = 1.22;
 stim.Fs = 48828.125;
 
@@ -28,14 +18,14 @@ buffdur = stim.buffdur;
 Fs = stim.Fs; 
 
 if stim.speed < 0 % downsweep
-    f1 = stim.fmax; 
-    f2 = stim.fmin; 
+    f_start = stim.fmax; 
+    f_end = stim.fmin; 
 else % upsweep
-    f1 = stim.fmin; 
-    f2 = stim.fmax; 
+    f_start = stim.fmin; 
+    f_end = stim.fmax; 
 end 
 
-dur = log2(stim.fmax/stim.fmin) / abs(stim.speed) + (2*buffdur);
+dur = abs(f_start - f_end) / abs(stim.speed) + (2*buffdur);
 t = 0: (1/Fs): (dur - 1/Fs);
 stim.t = t;
 
@@ -43,19 +33,20 @@ buffinst1 = find(t < buffdur, 1, 'last');
 buffinst2 = find(t > (dur - buffdur), 1, 'first');
 
 % in Frequency
-% buffdur_exact = t(buffinst1);
-% f2_inst = f1 + stim.speed*(t-buffdur_exact);  
-% f2_inst(1:buffinst1) = f1;
-% f2_inst(buffinst2:end) = f2;
+buffdur_exact = t(buffinst1);
+f2_inst = f_start + stim.speed*(t-buffdur_exact);  
+f2_inst(1:buffinst1) = f_start;
+f2_inst(buffinst2:end) = f_end;
 
 % in Phase
-start_2 = f1*t(1:buffinst1);
+start_2 = f_start*t(1:buffinst1);
 buffdur_exact = t(buffinst1);
-phi2_inst = f1*(2.^( (t-buffdur_exact) * stim.speed) - 1) / (stim.speed * log(2)) + start_2(end); % Cycles 
-end_2 = f2*t(1:(length(t)-buffinst2+1)) + phi2_inst(buffinst2); 
+phi2_inst = f_start*(t-buffdur_exact) + stim.speed*((t-buffdur_exact).^2)/2 + start_2(end); % Cycles 
+end_2 = f_end*t(1:(length(t)-buffinst2+1)) + phi2_inst(buffinst2); 
 phi2_inst(1:buffinst1) = start_2;
 phi2_inst(buffinst2:end) = end_2;
 
+% For logrithmic sweeps
 % f2_inst = fmax * 2.^( (t - buffdur) * stim.speed);
 % f2_inst(1:buffinst1) = fmax;
 % f2_inst(buffinst2:end) = fmin;
@@ -63,12 +54,11 @@ phi2_inst(buffinst2:end) = end_2;
 % phi2_inst(1:buffinst1) = fmax .* (t(1:buffinst1) - buffdur);
 % phi2_inst(buffinst2:end) = fmin .* (t(buffinst2:end) - t(buffinst2)) + phi2_inst(buffinst2);
 
-
-%f1_inst = f2_inst / stim.ratio;
+f1_inst = f2_inst / stim.ratio;
 phi1_inst = phi2_inst / stim.ratio;
 stim.y1 = scaleSound(rampsound(cos(2 * pi * phi1_inst), stim.Fs, 0.005));
 stim.y2 = scaleSound(rampsound(cos(2 * pi * phi2_inst), stim.Fs, 0.005));
-%stim.f1_inst = f1_inst;
-%stim.f2_inst = f2_inst;
+stim.f1_inst = f1_inst;
+stim.f2_inst = f2_inst;
 stim.phi1_inst = phi1_inst;
 stim.phi2_inst = phi2_inst;

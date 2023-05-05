@@ -9,7 +9,7 @@ try
     card = initializeCard;
     
     % Get stimulus structure
-    stim = Make_DPswept;
+    stim = Make_DPswept_log;
 
     % Get subject and ear info
     subj = input('Please subject ID:', 's');
@@ -29,7 +29,7 @@ try
     stim.ear = ear;
 
     % Make directory to save results
-    paraDir = 'C:\Experiments\DPswept\Results\';
+    paraDir = 'C:\Experiments\Sam\sweptDPOAE-main\Results\';
     
     addpath(genpath(paraDir));
     if(~exist(strcat(paraDir,'\',subj),'dir'))
