@@ -1,9 +1,24 @@
-%% Run swept DPOAE using NEL (but outside it)
+% Swept DPOAEs for Chinchillas (NEL)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Other m-files required: Make_DPswept_NEL.m, close_play_circuit.m
+% Other files required: BasicPlay_OAE_Nel2.rcx
+% MAT-files required: none
+%
+% References: 
+%   SNR based endpoint: 
+% 
+% Author: Samantha Hauser
+% November 2021; Last revision: 6-June-2023
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% Set up paths and subject info
 mainDir = pwd;
 
 % Create subject
 subj = input('Please subject ID:', 's');
 
+% Save time and date
 date = datetime('now');
 date.Format = 'yyyy_MM_dd';
 datetag = string(date);
@@ -16,6 +31,10 @@ findDir = dir(sprintf('*%s*%s*', datetag, subj));
 calibflag = 1;
 noCalibFlag = 0;
 
+% User enters calib file # to be used
+% If you wish to use no calibration file, enter 999
+% Otherwise, enter the number of the calibration file you ran to be
+% applied. 
 while calibflag == 1
     calibNum = input('What NEL calib #? ', 's');
     if isempty(findDir)
@@ -44,6 +63,7 @@ while calibflag == 1
     end
 end
 
+% User enters the ear to be tested
 earflag = 1;
 while earflag == 1
     ear = input('Please enter which year (L or R):', 's');
@@ -68,34 +88,32 @@ respDir = strcat(paraDir,'\',subj,'\');
 % Tell user to make sure ER-10B+ gain is set correctly
 uiwait(warndlg('Set ER-10B+ GAIN to 40 dB','SET ER-10B+ GAIN WARNING','modal'));
 
-%% Start w/ Delay if needed
 % Get stimulus structure
 stim = Make_DPswept_NEL;
 stim.subj = subj;
 stim.ear = ear;
 
+% Set variables for live SNR calculation
 windowdur = 0.5;
 SNRcriterion = stim.SNRcriterion;
 maxTrials = stim.maxTrials;
 minTrials = stim.minTrials;
-
 doneWithTrials = 0;
-figure;
 
-% Set attenuation and stims:
+figure; % will plot live SNR calculations
+
+% Set attenuation, stimuli, and empty response matrix
 buffdata = [stim.y1; stim.y2];
 drop_f1 = stim.drop_f1;
 drop_f2 = stim.drop_f2;
+resp = zeros(maxTrials, size(buffdata,2)); % matrix to store mic output
 
 % filter data
 if noCalibFlag ~= 1
     buffdata = filter(b, 1, buffdata, [], 1);
 end
 
-% Make arrays to store measured mic outputs
-resp = zeros(maxTrials, size(buffdata,2));
-
-% Ask if we want a delay (for running yourself)
+% User has optional delayed start (10 secs)
 button = input('Do you want a 10 second delay? (Y or N):', 's');
 switch button
     case {'Y', 'y', 'yes', 'Yes', 'YES'}
@@ -115,8 +133,8 @@ Fs = 48828.125;
 [f1RZ,RZ,~]=load_play_circuit_Nel2(FS_tag,fig_num,GB_ch);
 
 %% Loop for presenting stimuli
-% variable for live analysis
-k = 0;
+
+% Set variables for live analysis
 t = stim.t;
 testfreq = [.75, 1, 1.5, 2, 3, 4, 6, 8, 12].* 1000;
 
@@ -128,13 +146,13 @@ else
     f2 = stim.fmax;
 end
 
-if stim.speed < 20
+if stim.speed < 20 % assumes speed <20 refers to log sweep 
     t_freq = log2(testfreq/f1)/stim.speed + stim.buffdur;
 else
-    t_freq = (testfreq-f1)/stim.speed + stim.buffdur;
+    t_freq = (testfreq-f1)/stim.speed + stim.buffdur; % otherwise linear
 end
 
-
+k = 0; % number of trials for live analysis
 while doneWithTrials == 0
     k = k + 1;
     % Load the 2ch variable data into the RZ6:
@@ -227,7 +245,10 @@ while doneWithTrials == 0
     xlim([0.5, 16])
     drawnow;
     
-    if SNR_temp(1:8) > SNRcriterion
+    % To Do: Also check if there is too much artifact in a given trial. If
+    % there is, then re-run another trial to make up for that one. 
+    
+    if SNR_temp(1:8) > SNRcriterion % does not look at 12k 
         if k - stim.ThrowAway >= minTrials
             doneWithTrials = 1;
         end
@@ -243,12 +264,11 @@ stim.resp = resp(1:k-stim.ThrowAway,:);
 %% Add useful info to structure
 mic_sens = 0.05; % mV / Pa
 mic_gain = db2mag(40);
-
-P_ref = 20e-6; % * sqrt(2);
+P_ref = 20e-6;
 DR_onesided = 1;
-
 stim.VoltageToPascal = 1 / (DR_onesided * mic_gain * mic_sens);
 stim.PascalToLinearSPL = 1 /  P_ref;
+
 %% Save Measurements
 datetag = datestr(clock);
 click.date = datetag;
@@ -257,6 +277,7 @@ datetag(strfind(datetag,':')) = '_';
 fname = strcat(respDir,'DPOAEswept_',subj,'_', earname,'_',datetag, '.mat');
 save(fname,'stim');
 fprintf(1, 'Saved!\n');
+
 %% Close TDT, ER-10X connections etc. and cleanup
 close_play_circuit(f1RZ, RZ);
 

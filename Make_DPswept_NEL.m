@@ -1,20 +1,19 @@
 function stim = Make_DPswept_NEL()
-% rawstim (structure) should contain fields fmin, fmax, speed, Fs, ratio,
-% VtoPforH
 
 stim.fmin = 500;
 stim.fmax = 16000;
 stim.speed = 1; % oct/sec
 stim.drop_f1 = 105-65;  % levels
 stim.drop_f2 = stim.drop_f1 + 10; % f2 = f1 - 10 (ie +10 more attn)
+stim.ratio = 1.22;
+
 stim.buffdur = 0.25;% buffer duration
-stim.ThrowAway = 1;
+stim.Fs = 48828.125;
+
 stim.SNRcriterion = 6;
 stim.maxTrials = 50;
 stim.minTrials = 12;
-stim.Averages = 25; % not needed for auto levels
-stim.ratio = 1.22;
-stim.Fs = 48828.125;
+stim.ThrowAway = 1;
 
 % Create stimulus
 buffdur = stim.buffdur;

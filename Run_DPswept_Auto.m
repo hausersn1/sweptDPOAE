@@ -1,3 +1,16 @@
+% Swept DPOAEs for Humans (ER-10X)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Other m-files required: Make_DPswept_log.m, etc.
+% Other files required: none
+% MAT-files required: none
+%
+% References: 
+%   SNR based endpoint: 
+% 
+% Author: Samantha Hauser
+% November 2021; Last revision: 6-June-2023
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 try
     % Initialize ER-10X  (Also needed for ER-10C for calibrator)
     initializeER10X;
@@ -109,7 +122,7 @@ try
         
         WaitSecs(0.25);
         
-        fprintf(1, 'Done with # %d / %d trials \n', k, (stim.Averages + stim.ThrowAway));
+        fprintf(1, 'Done with # %d trials \n', k);
         
         % test OAE
         
