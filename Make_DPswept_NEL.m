@@ -11,7 +11,7 @@ stim.buffdur = 0.25;% buffer duration
 stim.Fs = 48828.125;
 
 stim.SNRcriterion = 6;
-stim.maxTrials = 50;
+stim.maxTrials = 20;
 stim.minTrials = 12;
 stim.ThrowAway = 1;
 

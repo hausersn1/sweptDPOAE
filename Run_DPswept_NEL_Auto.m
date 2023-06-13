@@ -9,59 +9,26 @@
 %   SNR based endpoint: 
 % 
 % Author: Samantha Hauser
-% November 2021; Last revision: 6-June-2023
+% Started: November 2021
+% Last revision: Add FPL calib...13-June-2023
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Set up paths and subject info
 mainDir = pwd;
+addpath('../FPLclick/')
+
+% Get stimulus structure
+stim = Make_DPswept_NEL;
 
 % Create subject
 subj = input('Please subject ID:', 's');
+stim.subj = subj;
 
 % Save time and date
 date = datetime('now');
 date.Format = 'yyyy_MM_dd';
 datetag = string(date);
 stim.date = datetag;
-
-% Get CalibFile from NEL DATA storage
-ExpDataDir = 'C:\NEL\ExpData\';
-cd(ExpDataDir);
-findDir = dir(sprintf('*%s*%s*', datetag, subj));
-calibflag = 1;
-noCalibFlag = 0;
-
-% User enters calib file # to be used
-% If you wish to use no calibration file, enter 999
-% Otherwise, enter the number of the calibration file you ran to be
-% applied. 
-while calibflag == 1
-    calibNum = input('What NEL calib #? ', 's');
-    if isempty(findDir)
-        fprintf(2,'You need to run a NEL calibration first!\n');
-        return
-    elseif length(findDir)~=1
-        fprintf(2,'Multiple Directories. I am confused. \n')
-        return
-    else
-        datadir = [ExpDataDir findDir.name];
-        cd(datadir);
-        calib_file = dir(sprintf('coef_00%s_calib.mat', calibNum));
-        if isempty(calib_file)
-            if calibNum == '999'
-                noCalibFlag = 1;
-                stim.b = 0;
-                calibflag = 0;
-            else
-                fprintf(2, 'No calib of that number. Try again! \n')
-            end
-        else
-            load(calib_file.name, 'b');
-            stim.b = b;
-            calibflag = 0;
-        end
-    end
-end
 
 % User enters the ear to be tested
 earflag = 1;
@@ -70,12 +37,72 @@ while earflag == 1
     switch ear
         case {'L', 'R', 'l', 'r', 'Left', 'Right', 'left', 'right', 'LEFT', 'RIGHT'}
             earname = strcat(ear, 'Ear');
+            stim.ear = ear;
             earflag = 0;
         otherwise
             fprintf(2, 'Unrecognized ear type! Try again!');
     end
 end
-cd(mainDir)
+
+
+% Get FPL CalibFile
+calibflag = 1;
+noCalibFlag = 0;
+while calibflag == 1
+    stim.b.Ph1 = FPL_inv_calib_fir_coeff(subj, ear, '1'); 
+    stim.b.Ph2 = FPL_inv_calib_fir_coeff(subj, ear, '2');  
+    calibflag = 0; 
+%         if isempty(calib_file)
+%             if calibNum == '999'
+%                 noCalibFlag = 1;
+%                 stim.b = 0;
+%                 calibflag = 0;
+%             else
+%                 fprintf(2, 'No calib of that number. Try again! \n')
+%             end
+%         else
+%             load(calib_file.name, 'b');
+%             stim.b = b;
+%             calibflag = 0;
+%         end
+
+end
+
+% Get CalibFile from NEL DATA storage
+% ExpDataDir = 'C:\NEL\ExpData\';
+% cd(ExpDataDir);
+% findDir = dir(sprintf('*%s*%s*', datetag, subj));
+% User enters calib file # to be used
+% If you wish to use no calibration file, enter 999
+% Otherwise, enter the number of the calibration file you ran to be
+% applied. 
+% while calibflag == 1
+%     calibNum = input('What NEL calib #? ', 's');
+%     if isempty(findDir)
+%         fprintf(2,'You need to run a NEL calibration first!\n');
+%         return
+%     elseif length(findDir)~=1
+%         fprintf(2,'Multiple Directories. I am confused. \n')
+%         return
+%     else
+%         datadir = [ExpDataDir findDir.name];
+%         cd(datadir);
+%         calib_file = dir(sprintf('coef_00%s_calib.mat', calibNum));
+%         if isempty(calib_file)
+%             if calibNum == '999'
+%                 noCalibFlag = 1;
+%                 stim.b = 0;
+%                 calibflag = 0;
+%             else
+%                 fprintf(2, 'No calib of that number. Try again! \n')
+%             end
+%         else
+%             load(calib_file.name, 'b');
+%             stim.b = b;
+%             calibflag = 0;
+%         end
+%     end
+% end
 
 % Make directory to save results
 paraDir = 'C:\Users\Heinz Lab - NEL2\Desktop\OAEs\sweptDPOAE\Results';
@@ -87,11 +114,6 @@ respDir = strcat(paraDir,'\',subj,'\');
 
 % Tell user to make sure ER-10B+ gain is set correctly
 uiwait(warndlg('Set ER-10B+ GAIN to 40 dB','SET ER-10B+ GAIN WARNING','modal'));
-
-% Get stimulus structure
-stim = Make_DPswept_NEL;
-stim.subj = subj;
-stim.ear = ear;
 
 % Set variables for live SNR calculation
 windowdur = 0.5;
@@ -109,9 +131,14 @@ drop_f2 = stim.drop_f2;
 resp = zeros(maxTrials, size(buffdata,2)); % matrix to store mic output
 
 % filter data
-if noCalibFlag ~= 1
-    buffdata = filter(b, 1, buffdata, [], 1);
-end
+buffdata(1,:) = filter(stim.b.Ph1, 1, buffdata(1,:), [], 1);
+buffdata(2,:) = filter(stim.b.Ph2, 1, buffdata(2,:), [], 1);
+
+% 
+% % filter data
+% if noCalibFlag ~= 1
+%     buffdata = filter(b, 1, buffdata, [], 1);
+% end
 
 % User has optional delayed start (10 secs)
 button = input('Do you want a 10 second delay? (Y or N):', 's');
@@ -281,3 +308,4 @@ fprintf(1, 'Saved!\n');
 %% Close TDT, ER-10X connections etc. and cleanup
 close_play_circuit(f1RZ, RZ);
 
+rmpath('../FPLclick/')
