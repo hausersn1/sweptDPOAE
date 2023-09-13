@@ -8,36 +8,48 @@
 %
 % References:
 %   SNR based endpoint: Abdala, C., Luo, P. & Shera, C.A. Characterizing
-%       the Relationship Between Reflection and Distortion Otoacoustic 
-%       Emissions in Normal-Hearing Adults. JARO 23, 647–664 (2022). 
+%       the Relationship Between Reflection and Distortion Otoacoustic
+%       Emissions in Normal-Hearing Adults. JARO 23, 647–664 (2022).
 %       https://doi.org/10.1007/s10162-022-00857-z
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% Set up data storage and subject info
+
+% Change to 0 if not running on SNAPlab computer at Purdue
+Purdue_SNAP = 0;
 
 % Measure-General info
 info.name = 'DPOAEswept';
 info.version = 'Auto_v02';
 
 % Visit info
-if exist('C:\Experiments\Sam\current_visit.mat','file')
-    load('C:\Experiments\Sam\current_visit.mat', 'visit')
-    ask = questdlg(sprintf('Is this subject %s?', visit.subj.ID), ...
-        'Check Subject', 'Yes', 'No', 'No');
+if Purdue_SNAP == 1
+    if exist('C:\Experiments\Sam\current_visit.mat','file')
+        load('C:\Experiments\Sam\current_visit.mat', 'visit')
+        ask = questdlg(sprintf('Is this subject %s?', visit.subj.ID), ...
+            'Check Subject', 'Yes', 'No', 'No');
+    else
+        ask = 'No';
+    end
+    
+    if strcmp(ask, 'No')
+        cd ..
+        startVisit
+        cd(info.name)
+    end
+    
+    subj = visit.subj;
+    info.room = visit.room;
+    info.univ = visit.univ;
+    info.researcher = visit.researcher;
+    
 else
-    ask = 'No';
+    
+    subj = input('Subject ID:', 's');
+    info.room = 'Room Number';
+    info.univ = 'Pitt';
+    info.researcher = input('Initials of tester','s');
 end
-
-if strcmp(ask, 'No')
-    cd ..
-    startVisit
-    cd(info.name)
-end
-
-subj = visit.subj;
-info.room = visit.room;
-info.univ = visit.univ;
-info.researcher = visit.researcher;
 
 % Get ear info
 subj.ear = questdlg('Which ear?', 'Ear', 'L', 'R', 'R');
@@ -245,7 +257,7 @@ try
     data.resp.trialsCollected = k_kept;
     data.resp.AllBuffs = resp(1:k_kept,:);
     data.info.testDur_s = toc;
-    data.resp.noisyTrials = noisy_trials; 
+    data.resp.noisyTrials = noisy_trials;
     
     save(fname,'data');
     
@@ -255,9 +267,9 @@ try
     rmpath(pcard);
     
     %% Quick Analysis
-    analyze = questdlg('Do you want to see the analysis?', 'Analysis?', 'Yes', 'No', 'No'); 
+    analyze = questdlg('Do you want to see the analysis?', 'Analysis?', 'Yes', 'No', 'No');
     if strcmp(analyze, 'Yes')
-        Analyze_DPswept; 
+        Analyze_DPswept;
     end
     
 catch me
