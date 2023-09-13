@@ -101,6 +101,6 @@ try
 catch me
     closeER10X;
     closeCard(card);
-    rmpath(pcard);s
+    rmpath(pcard);
     rethrow(me);
 end

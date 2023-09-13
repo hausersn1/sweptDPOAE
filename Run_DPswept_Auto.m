@@ -8,7 +8,7 @@
 % References: 
 %   SNR based endpoint: 
 % 
-% Author: Samantha Hauser
+% Samantha Hauser
 % November 2021; Last revision: 6-June-2023
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 try
@@ -42,7 +42,7 @@ try
     stim.ear = ear;
     
     % Make directory to save results
-    paraDir = 'C:\Experiments\Sam\sweptDPOAE-main\Results\';
+    paraDir = 'C:\Experiments\Sam\DPOAEswept\Results\';
     
     addpath(genpath(paraDir));
     if(~exist(strcat(paraDir,'\',subj),'dir'))
@@ -142,7 +142,7 @@ try
             model_dp = [cos(phiProbe_inst(win)) .* taper;
                 -sin(phiProbe_inst(win)) .* taper];
             
-        if stim.speed < 0
+        if stim.speed < 0 % fixed
             nearfreqs = [1.10, 1.12, 1.14, 1.16];
         else
             nearfreqs = [.90, .88, .86, .84];
@@ -182,8 +182,11 @@ try
         xlabel('Frequency (Hz)')
         ylabel('Median Amplitude dB')
         set(gca, 'XScale', 'log', 'FontSize', 14)
-        xticks([.5, 1, 2, 4, 8, 16])
+%         xticks([.5, 1, 2, 4, 8, 16])
         xlim([0.5, 16])
+        ylim([-30, 30]); 
+        yticks((-30:6:30))
+        grid on; 
         drawnow; 
         
         % if SNR is good enough and we've hit the minimum number of
@@ -217,6 +220,6 @@ try
 catch me
     closeER10X;
     closeCard(card);
-    rmpath(pcard);s
+    rmpath(pcard);
     rethrow(me);
 end
