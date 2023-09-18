@@ -1,11 +1,11 @@
 % DPOAE swept Analysis
 % Author: Samantha Hauser
 % Created: May 2023
-% Last Updated: Sept 5, 2023
+% Last Updated: Sept 16, 2023
 % Purpose:
 % Helpful info: Ensure a datafile is loaded
 
-% For quick visualization after data collection. 
+% For quick visualization after data collection.
 
 %%%%%%%%% Set these parameters %%%%%%%%%%%%%%%%%%
 
@@ -95,7 +95,7 @@ std_oae = std(oae);
 resp_AR = DPOAEtrials;
 for j = 1:trials
     for k = 1:npoints
-        if oae(j,k) > median_oae(1,k) + 4*std_oae(1,k)
+        if oae(j,k) > median_oae(1,k) + 3*std_oae(1,k)
             win = find( (t > (t_freq(k) - windowdur.*.1)) & ...
                 (t < (t_freq(k) + windowdur.*.1)));
             resp_AR(j,win) = NaN;
@@ -129,6 +129,24 @@ for k = 1:npoints
     % set the response
     resp = DPOAE(win) .* taper;
     
+    % DP Coeffs with variable delay calculation
+    model_dp = [cos(phi_dp_inst(win)) .* taper;
+        -sin(phi_dp_inst(win)) .* taper];
+    
+    % zero out variables for offset calc
+    coeff = zeros(maxoffset, 6);
+    coeff_n = zeros(maxoffset, 6);
+    resid = zeros(maxoffset, 3);
+    for offset = 0:maxoffset
+        resp = DPOAE(win+offset) .* taper;
+        coeff(offset + 1, 1:2) = model_dp' \ resp';
+        resid(offset + 1, 1) = sum( (resp  - coeff(offset + 1, 1:2) * model_dp).^2);
+    end
+    [~, ind] = min(resid(:,1));
+    coeffs(k, 1:2) = coeff(ind, 1:2);
+    % Calculate delay
+    tau_dp(k) = (ind(1) - 1) * 1/stim.Fs; % delay in sec
+
     % F1 Coeffs
     model_f1 = [cos(phi1_inst(win)) .* taper;
         -sin(phi1_inst(win)) .* taper];
@@ -151,26 +169,6 @@ for k = 1:npoints
         -sin(nfreqs(4)*phi_dp_inst(win)) .* taper];
     coeffs_noise(k,:) = model_noise' \ resp';
     
-    % DP Coeffs with variable delay calculation
-    model_dp = [cos(phi_dp_inst(win)) .* taper;
-        -sin(phi_dp_inst(win)) .* taper];
-    
-    % zero out variables for offset calc
-    coeff = zeros(maxoffset, 6);
-    coeff_n = zeros(maxoffset, 6);
-    resid = zeros(maxoffset, 3);
-    
-    for offset = 0:maxoffset
-        resp = DPOAE(win+offset) .* taper;
-        coeff(offset + 1, 1:2) = model_dp' \ resp';
-        resid(offset + 1, 1) = sum( (resp  - coeff(offset + 1, 1:2) * model_dp).^2);
-    end
-    
-    [~, ind] = min(resid(:,1));
-    coeffs(k, 1:2) = coeff(ind, 1:2);
-    
-    % Calculate delay
-    tau_dp(k) = (ind(1) - 1) * 1/stim.Fs; % delay in sec
 end
 
 %% Amplitude and Delay calculations
@@ -184,7 +182,7 @@ b_f2 = coeffs(:, 6);
 % complex DPOAE
 oae_complex = complex(a_dp, b_dp);
 
-% complex average noise 
+% complex average noise
 noise = zeros(npoints,4);
 for i = 1:2:8
     noise(:,ceil(i/2)) = complex(coeffs_noise(:,i), coeffs_noise(:,i+1));
@@ -196,14 +194,14 @@ phi_dp = tau_dp.*freq_dp'; % cycles (from delay/offset)
 phasor_dp = exp(-1j * phi_dp * 2 * pi);
 
 VtoSPL = stim.VoltageToPascal .* stim.PascalToLinearSPL;
-            
+
 %% Plot Results Figure
 figure;
 plot(freq_f2/1000, db(abs(oae_complex).*VtoSPL), 'linew', 2, 'Color', [0 0.4470 0.7410]);
 hold on;
 plot(freq_f2/1000, db(abs(noise_complex).*VtoSPL), '--', 'linew', 2, 'Color', [0.6350 0.0780 0.1840]);
-plot(freq_f2/1000, db(abs(complex(a_f2,b_f2)).*VtoSPL), 'linew', 1, 'Color', [0.4940 0.1840 0.5560]);
-plot(freq_f1/1000, db(abs(complex(a_f1, b_f1)).*VtoSPL), 'linew', 1, 'Color', [0.9290 0.6940 0.1250]);
+plot(freq_f2/1000, db(abs(complex(a_f2,b_f2)).*VtoSPL), 'linew', 2, 'Color', [0.4940 0.1840 0.5560]);
+plot(freq_f1/1000, db(abs(complex(a_f1, b_f1)).*VtoSPL), 'linew', 2, 'Color', [0.9290 0.6940 0.1250]);
 title('DPOAE', 'FontSize', 14)
 set(gca, 'XScale', 'log', 'FontSize', 14)
 xlim([.5, 16])
@@ -213,3 +211,5 @@ ylabel('Amplitude (dB SPL)', 'FontWeight', 'bold')
 xlabel('F2 Frequency (kHz)', 'FontWeight', 'bold')
 legend('OAE', 'NF', 'F2', 'F1')
 drawnow;
+
+%% TODO: Add creation of summary points and conversion to EPL

@@ -16,11 +16,12 @@ if strcmp(err, 'ER10X_ERR_OK')
 else
     error('Something wrong! Could not connect to ER10X!');
 end
-probeIndex = 0;
+
+probeIndex = 1; % 0=A/1=B (changed to B 9/15/23)
 gain = 30; % dB
 temperatureF = 0; % Turn off heater
 er10x_set_gain(ER10XHandle,probeIndex,gain);
-er10x_set_output_limiter(ER10XHandle, 1); % Disable output limiter
+er10x_set_output_limiter(ER10XHandle, 1); % Enable output limiter
 
 %er10x_output_limiter_confirm_disable(ER10XHandle); % Confirm output limiter off
 er10x_set_mic_response(ER10XHandle, probeIndex, 1); % Flat frequency response

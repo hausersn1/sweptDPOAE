@@ -28,7 +28,8 @@ stim.PascalToLinearSPL = 1 /  stim.P_ref;
 
 %% For live analysis
 stim.windowdur = 0.25;
-stim.testfreq = [.75, 1, 1.5, 2, 3, 4, 6, 8, 12].* 1000;
+%stim.testfreq = [.75, 1, 1.5, 2, 3, 4, 6, 8, 12].* 1000;
+stim.npoints = 128; 
 
 if stim.speed < 0 % fixed
     stim.nearfreqs = [1.10, 1.12, 1.14, 1.16];

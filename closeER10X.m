@@ -1,5 +1,5 @@
 temperatureF = 86; % 30C
-probeIndex = 0;
+probeIndex = 1; % 0=A/1=B (changed to B 9/15/23)
 er10x_set_heater_temperature(ER10XHandle,probeIndex,temperatureF);
 err = er10x_disconnect(ER10XHandle);
 if strcmp(err, 'ER10X_ERR_OK')
